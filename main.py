@@ -1,121 +1,106 @@
-'''Make horizontal line that shows the trajectory
-border around play zone
-unionize Block into other shapes
-add score for each line at the bottom'''
+'''For blocks to move down, just move the points lower
+or move the polygon lower
+if one of the points goes out of bounds, stop moving the block
+and spawn new one
+if all blocks on a line are occupied, clear them and get points
+as well as move all the above ones one step lower'''
 
 
+from copy import deepcopy
 import pygame
+import random
 
+
+# Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
-WINDOW_WIDTH = 500
-WINDOW_HEIGHT = 800
 
 
-class Block:
-    width = 10
-    height = 10
+# Setting up game window (not main window), where you interact with blocks
+GAME_WIDTH = 10
+GAME_HEIGHT = 20
+TILE_SIZE = 50
+GAME_RESOLUTION = GAME_WIDTH * TILE_SIZE, GAME_HEIGHT * TILE_SIZE
 
-    def __init__(self, pos_x=0, pos_y=0):
-        self.pos_x = pos_x
-        self.pos_y = pos_y
+FPS = 10
 
-    def move(self, rect: pygame.Rect):
-        rect.move_ip()
-        pass
-
-    def rotate(self):
-        pass
-
-
-class Cube_Block(Block):
-    pass
+figures_position = [[(-1, 0), (-2, 0), (0, 0), (1, 0)],
+                    [(0, -1), (-1, -1), (-1, 0), (0, 0)],
+                    [(-1, 0), (-1, 1), (0, 0), (0, -1)],
+                    [(0, 0), (-1, 0), (0, 1), (-1, -1)],
+                    [(0, 0), (0, -1), (0, 1), (-1, -1)],
+                    [(0, 0), (0, -1), (0, 1), (1, -1)],
+                    [(0, 0), (0, -1), (0, 1), (-1, 0)]]
 
 
-class L_Block(Block):
-    pass
-
-
-class I_Block(Block):
-    pass
-
-
-class S_Block(Block):
-    pass
+def check_borders(figure):
+    if figure.x < 0 or figure.x > GAME_WIDTH - 1:
+        return False
+    return True
 
 
 def main():
     # Initialize pygame
     pygame.init()
-
-    # Set window size and caption
-    window_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
-    window = pygame.display.set_mode(window_size)
+    game_sc = pygame.display.set_mode(GAME_RESOLUTION)
+    clock = pygame.time.Clock()
     pygame.display.set_caption("PyTetris")
-
-    # Initialize score text "Score: 0"
-    pygame.font.init()
-    font = pygame.font.SysFont("Times New Roman", 20)
-    score_text = font.render("Score: 0", True, WHITE)
-    text_rect = score_text.get_rect(center=(WINDOW_WIDTH/2, 15))
 
     exit = False
 
-    placed_blocks = []
+    # Game Grid
+    grid = [pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+            for x in range(GAME_WIDTH) for y in range(GAME_HEIGHT)]
 
-    new_block = True
+    figures = [[pygame.Rect(x + GAME_WIDTH // 2, y + 1, 1, 1)
+                for x, y in figures_pos] for figures_pos in figures_position]
+    figure_rectangle = pygame.Rect(0, 0, TILE_SIZE - 2, TILE_SIZE - 2)
+
+    figure = deepcopy(figures[2])
 
     # Game Loop
     while not exit:
-        pygame.time.delay(100)
+        # move left and right
+        move_right = 0
 
-        # Test the display with a rectangle
-        test_rect_block = Block(WINDOW_WIDTH/2, 50)
-
-        while new_block:
-            player_block = pygame.Rect(test_rect_block.pos_x, test_rect_block.pos_y,
-                                       test_rect_block.height, test_rect_block.width)
-            new_block = False
-
-        # Fill background with black and draw score
-        window.fill(BLACK)
-        window.blit(score_text, text_rect)
-
+        game_sc.fill(pygame.Color('black'))
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 exit = True
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT:
+                    move_right = -1
+                elif event.key == pygame.K_RIGHT:
+                    move_right = 1
+        # Move x
+        figure_old = deepcopy(figure)
+        for i in range(len(figure)):
+            figure[i].x += move_right
+            if not check_borders(figure[i]):
+                figure = deepcopy(figure_old)
+                break
 
-        if player_block.y < WINDOW_HEIGHT-10:
-            player_block.move_ip(0, 10)
-        else:
-            player_block.y = WINDOW_HEIGHT-10
+        # Draw grid for game window
+        [pygame.draw.rect(game_sc, (50, 50, 50), i_rect, 1) for i_rect in grid]
 
-        keys = pygame.key.get_pressed()
+        # Move the figure down
+        figure_old = deepcopy(figure)
+        for i in range(len(figure)):
+            if figure[i].y >= GAME_HEIGHT - 1:
+                figure = deepcopy(figure_old)
+                break
+            figure[i].y += 1
 
-        if keys[pygame.K_LEFT] and player_block.x > 0:
-            player_block.move_ip(-10, 0)
-        if keys[pygame.K_RIGHT] and player_block.x < WINDOW_WIDTH-10:
-            player_block.move_ip(10, 0)
-
-        for block in placed_blocks:
-            if not block.x == player_block.x:
-                pass
-            if block.y == player_block.y+10:
-                placed_blocks.append(player_block)  # TODO: Function this
-                new_block = True
-
-        if (not new_block) and player_block.y == WINDOW_HEIGHT-10:  # TODO: unnested if
-            placed_blocks.append(player_block)  # TODO: New function
-            new_block = True
-
-        for block in placed_blocks:
-            pygame.draw.rect(window, (255, 0, 0), block)
-
-        pygame.draw.rect(window, (255, 255, 255), player_block)
-        pygame.display.update()
+        # Draw figures
+        for i in range(len(figure)):
+            figure_rectangle.x = figure[i].x * TILE_SIZE
+            figure_rectangle.y = figure[i].y * TILE_SIZE
+            pygame.draw.rect(game_sc, pygame.Color('white'), figure_rectangle)
+        pygame.display.flip()
+        clock.tick(FPS)
 
 
 if __name__ == "__main__":
